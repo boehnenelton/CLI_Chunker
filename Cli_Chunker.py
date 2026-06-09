@@ -1,31 +1,15 @@
-#===============================================================================
-# BEJSON ECOSYSTEM MANDATE: CHUNKING POLICY (v2.0)
-#===============================================================================
-# [USAGE NOTE]: Use Cli_Chunker for TRANSIENT payloads, single-file context
-# snapshots (BEJSON 104db), and rapid delivery to LLMs.
-# NOT for long-term version history or lossless binary archiving.
-# ALWAYS check and obey the Chunking Policy in the Policy Registry.
-#
-# 1. PERMANENT STORAGE: All final chunks MUST be stored in:
-#    /storage/emulated/0/Admin/resources/chunks/
-# 2. FORMAT STANDARD: ALWAYS use BEJSON 104db format for all production chunks.
-# 3. UPLOAD COMPLIANCE: All .bejson chunks MUST append .txt to the filename.
-#    This bypasses restrictive MIME-type filters on web platforms.
-#    Example: library.104db.bejson.txt
-# 4. CLEANUP: Delete temporary timestamped folders in /output/ after moving.
-# 5. AUDIT: All chunking operations MUST be logged to the system Audit Log.
-#===============================================================================
-
 #!/usr/bin/env python3
 """
 CLI Chunker - Project to BEJSON 104db Packager & Rebuilder
-REMEDIATED: Strictly non-regex, uses lib_bejson_utility for parity.
+OVERHAULED: Versioned Project Storage System with Numeric Indexing
 """
 import os
 import sys
 import json
 import argparse
 import time
+import random
+import shutil
 from pathlib import Path
 
 # Setup local library path
@@ -40,57 +24,70 @@ except ImportError:
     print("CRITICAL: Local libraries not found in lib/")
     sys.exit(1)
 
+PROJECTS_DIR = BASE_DIR / "Projects"
 HISTORY_FILE = BASE_DIR / "chunk_history.104a.bejson"
+REGISTRY_FILE = BASE_DIR / "project_registry.104a.bejson"
+
 HISTORY_FIELDS = [
     {"name": "timestamp", "type": "string"},
     {"name": "project_name", "type": "string"},
+    {"name": "version", "type": "string"},
     {"name": "file_path", "type": "string"}
 ]
 
+REGISTRY_FIELDS = [
+    {"name": "project_name", "type": "string"},
+    {"name": "original_path", "type": "string"},
+    {"name": "last_chunked", "type": "string"}
+]
+
+# Standard configuration defaults
 DEFAULT_CONFIG = {
-    "project_name": "MyProject",
-    "version": "v1.6.0",
     "extensions": Utility.DEFAULT_EXTENSIONS,
     "exclude_dirs": Utility.DEFAULT_EXCLUDES,
-    "output_base": str(BASE_DIR / "output"),
     "evade_mime": True
 }
 
 def get_timestamp():
     return Utility.bejson_utility_get_timestamp()
 
-def load_or_create_config(target_path):
-    config_path = Path(target_path) / "chunker_config.json"
-    # Derive project name from directory name
-    auto_name = target_path.name.replace(" ", "_")
-    
-    if config_path.exists():
-        try:
-            with open(config_path, "r") as f:
-                config = json.load(f)
-                # Auto-set name if default or missing
-                if config.get("project_name") == "MyProject" or "project_name" not in config:
-                    config["project_name"] = auto_name
-                
-                for k, v in DEFAULT_CONFIG.items():
-                    if k not in config: config[k] = v
-                return config
-        except Exception as e:
-            print(f"Warning: Failed to read config, using defaults. Error: {e}")
-    
-    # Create new config with derived name
-    config = DEFAULT_CONFIG.copy()
-    config["project_name"] = auto_name
-    try:
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-        print(f"[*] Created default config at {config_path}")
-    except Exception as e:
-        print(f"Warning: Could not create config file. Error: {e}")
-        
-    return config
+def get_next_version(project_root):
+    if not project_root.exists():
+        return "v1"
+    versions = []
+    for d in project_root.iterdir():
+        if d.is_dir() and d.name.startswith("v"):
+            try:
+                versions.append(int(d.name[1:]))
+            except: pass
+    if not versions:
+        return "v1"
+    return f"v{max(versions) + 1}"
 
-def save_to_history(project_name, file_path):
+def save_to_registry(project_name, original_path):
+    registry = []
+    if REGISTRY_FILE.exists():
+        try:
+            doc = BEJSONCore.bejson_core_load_file(str(REGISTRY_FILE))
+            registry = doc.get("Values", [])
+        except: pass
+    
+    # Check if exists, update path if changed
+    found = False
+    for i, row in enumerate(registry):
+        if row[0] == project_name:
+            registry[i][1] = str(original_path)
+            registry[i][2] = get_timestamp()
+            found = True
+            break
+    
+    if not found:
+        registry.append([project_name, str(original_path), get_timestamp()])
+    
+    doc = BEJSONCore.bejson_core_create_104a("ProjectRegistry", REGISTRY_FIELDS, registry)
+    BEJSONCore.bejson_core_atomic_write(str(REGISTRY_FILE), doc)
+
+def save_to_history(project_name, version, file_path):
     history = []
     if HISTORY_FILE.exists():
         try:
@@ -99,13 +96,33 @@ def save_to_history(project_name, file_path):
         except: pass
     
     # Newest at top
-    history.insert(0, [get_timestamp(), project_name, str(file_path)])
-    history = history[:20] # Keep last 20
+    history.insert(0, [get_timestamp(), project_name, version, str(file_path)])
+    history = history[:100] # Keep last 100
     
     doc = BEJSONCore.bejson_core_create_104a("ChunkHistory", HISTORY_FIELDS, history)
     BEJSONCore.bejson_core_atomic_write(str(HISTORY_FILE), doc)
 
-def list_history():
+def list_chunk_index():
+    if not REGISTRY_FILE.exists():
+        print("No project registry found.")
+        return
+    
+    try:
+        doc = BEJSONCore.bejson_core_load_file(str(REGISTRY_FILE))
+        values = doc.get("Values", [])
+        if not values:
+            print("Registry is empty.")
+            return
+            
+        print(f"\n{'ID':<4} | {'Project Name':<25} | {'Source Path'}")
+        print("-" * 100)
+        for i, row in enumerate(values, 1):
+            name, path, _ = row
+            print(f"{i:<4} | {name:<25} | {path}")
+    except Exception as e:
+        print(f"Error reading registry: {e}")
+
+def list_unchunk_index():
     if not HISTORY_FILE.exists():
         print("No chunk history found.")
         return
@@ -117,24 +134,139 @@ def list_history():
             print("History is empty.")
             return
             
-        print(f"\n{'ID':<4} | {'Timestamp':<20} | {'Project':<20} | {'Path'}")
-        print("-" * 80)
+        print(f"\n{'ID':<4} | {'Timestamp':<20} | {'Project':<20} | {'Ver':<6} | {'Chunk Path'}")
+        print("-" * 120)
         for i, row in enumerate(values, 1):
-            ts, proj, path = row
-            print(f"{i:<4} | {ts:<20} | {proj:<20} | {path}")
+            if len(row) == 4:
+                ts, proj, ver, path = row
+            else:
+                ts, proj, path = row
+                ver = "legacy"
+            print(f"{i:<4} | {ts:<20} | {proj:<20} | {ver:<6} | {path}")
     except Exception as e:
         print(f"Error reading history: {e}")
 
-def resolve_history_index(index_str):
+def resolve_registry_id(index_str):
+    if not REGISTRY_FILE.exists(): return None
+    try:
+        idx = int(index_str) - 1
+        doc = BEJSONCore.bejson_core_load_file(str(REGISTRY_FILE))
+        values = doc.get("Values", [])
+        if 0 <= idx < len(values):
+            return values[idx][0] # Index 0 is project_name
+    except: pass
+    return None
+
+def resolve_registry_path(index_str):
+    if not REGISTRY_FILE.exists(): return None
+    try:
+        idx = int(index_str) - 1
+        doc = BEJSONCore.bejson_core_load_file(str(REGISTRY_FILE))
+        values = doc.get("Values", [])
+        if 0 <= idx < len(values):
+            return values[idx][1] # Index 1 is original_path
+    except: pass
+    return None
+
+def resolve_history_path(index_str):
     if not HISTORY_FILE.exists(): return None
     try:
         idx = int(index_str) - 1
         doc = BEJSONCore.bejson_core_load_file(str(HISTORY_FILE))
         values = doc.get("Values", [])
         if 0 <= idx < len(values):
-            return values[idx][2] # Index 2 is file_path
+            return values[idx][-1] # File path is always the last element
     except: pass
     return None
+
+def expell_project(index_str):
+    if not REGISTRY_FILE.exists():
+        print("Error: No project registry found.")
+        return
+    
+    try:
+        idx = int(index_str) - 1
+        doc = BEJSONCore.bejson_core_load_file(str(REGISTRY_FILE))
+        values = doc.get("Values", [])
+        
+        if 0 <= idx < len(values):
+            removed = values.pop(idx)
+            print(f"[*] Expelling project: {removed[0]} (Registry entry removed, files preserved)")
+            
+            doc = BEJSONCore.bejson_core_create_104a("ProjectRegistry", REGISTRY_FIELDS, values)
+            BEJSONCore.bejson_core_atomic_write(str(REGISTRY_FILE), doc)
+        else:
+            print(f"Error: Project ID {index_str} not found.")
+    except Exception as e:
+        print(f"Error expelling project: {e}")
+
+def delete_project(index_str):
+    if not REGISTRY_FILE.exists():
+        print("Error: No project registry found.")
+        return
+    
+    try:
+        idx = int(index_str) - 1
+        doc = BEJSONCore.bejson_core_load_file(str(REGISTRY_FILE))
+        values = doc.get("Values", [])
+        
+        if 0 <= idx < len(values):
+            removed = values.pop(idx)
+            project_name = removed[0]
+            print(f"[*] Deleting project: {project_name}")
+            
+            # Remove from registry
+            doc = BEJSONCore.bejson_core_create_104a("ProjectRegistry", REGISTRY_FIELDS, values)
+            BEJSONCore.bejson_core_atomic_write(str(REGISTRY_FILE), doc)
+            
+            # Delete project folder
+            project_root = PROJECTS_DIR / project_name
+            if project_root.exists():
+                shutil.rmtree(project_root)
+                print(f"[*] Deleted project files at {project_root}")
+            else:
+                print(f"Warning: Project folder not found at {project_root}")
+        else:
+            print(f"Error: Project ID {index_str} not found.")
+    except Exception as e:
+        print(f"Error deleting project: {e}")
+
+def get_versions(index_str):
+    project_name = resolve_registry_id(index_str)
+    if not project_name:
+        print(f"Error: Project ID {index_str} not found.")
+        return
+    
+    project_root = PROJECTS_DIR / project_name
+    if not project_root.exists():
+        print(f"No versioned files found for project: {project_name}")
+        return
+    
+    versions = sorted([d.name for d in project_root.iterdir() if d.is_dir() and d.name.startswith("v")], 
+                      key=lambda x: int(x[1:]) if x[1:].isdigit() else 0)
+    
+    if not versions:
+        print(f"No versions found for {project_name}")
+        return
+        
+    print(f"\nVersions for project: {project_name}")
+    print("-" * 30)
+    for v in versions:
+        print(f"  - {v}")
+
+def delete_version(index_str, version_str):
+    project_name = resolve_registry_id(index_str)
+    if not project_name:
+        print(f"Error: Project ID {index_str} not found.")
+        return
+    
+    version_dir = PROJECTS_DIR / project_name / version_str
+    if version_dir.exists() and version_dir.is_dir():
+        print(f"[*] Deleting version {version_str} for project {project_name}...")
+        shutil.rmtree(version_dir)
+        print("[*] Success.")
+    else:
+        print(f"Error: Version {version_str} not found for project {project_name} at {version_dir}")
 
 def run_chunk(target_dir):
     target_path = Path(target_dir).resolve()
@@ -142,15 +274,21 @@ def run_chunk(target_dir):
         print(f"Error: {target_dir} is not a directory.")
         return
 
-    config = load_or_create_config(target_path)
-    
+    # Project identification
+    project_name = target_path.name.replace(" ", "_")
+    project_root = PROJECTS_DIR / project_name
+    version = get_next_version(project_root)
+    version_dir = project_root / version
+    version_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"[*] Mode: CHUNK (104db)")
+    print(f"[*] Project: {project_name} ({version})")
     print(f"[*] Target: {target_path}")
     
     doc = Utility.bejson_utility_create_cli_chunk(
-        target_dir=target_dir,
-        project_name=config["project_name"],
-        version=config["version"]
+        target_dir=str(target_path),
+        project_name=project_name,
+        version=version
     )
     
     # Structural Validation
@@ -162,28 +300,21 @@ def run_chunk(target_dir):
             print(f"  - {err}")
         return
 
-    ts_slug = get_timestamp().replace(":", "").replace("-", "")
-    out_dir = Path(config["output_base"]) / "chunked" / ts_slug
-    out_dir.mkdir(parents=True, exist_ok=True)
-    
     ext = ".104db.bejson"
-    if config.get("evade_mime"):
+    if DEFAULT_CONFIG.get("evade_mime"):
         ext += ".txt"
         
-    out_file = out_dir / f'Chunked_{Utility.bejson_utility_sanitize_name(config["project_name"])}{ext}'
+    out_file = version_dir / f'Chunked_{Utility.bejson_utility_sanitize_name(project_name)}_{version}{ext}'
     
     if Utility.bejson_utility_save_chunk(str(out_file), doc):
         print(f"\n[SUCCESS] Project chunked into {out_file}")
         print(f"[*] Total Records: {len(doc['Values'])}")
-        save_to_history(config["project_name"], out_file)
+        save_to_registry(project_name, target_path)
+        save_to_history(project_name, version, out_file)
     else:
         print(f"\n[ERROR] Failed to save BEJSON chunk.")
 
-def run_unchunk(arg):
-    # Try to resolve index
-    resolved_path = resolve_history_index(arg)
-    bejson_file = resolved_path if resolved_path else arg
-    
+def run_unchunk(bejson_file, destination=None):
     input_path = Path(bejson_file).resolve()
     if not input_path.exists():
         print(f"Error: File {bejson_file} not found.")
@@ -218,9 +349,13 @@ def run_unchunk(arg):
         meta_rows = [r for r in doc["Values"] if r[0] == "ProjectMeta"]
         proj_name = meta_rows[0][pname_idx] if meta_rows else "RestoredProject"
         
-        ts_slug = get_timestamp().replace(":", "").replace("-", "")
         # Setup Output Dir
-        out_dir = Path(DEFAULT_CONFIG["output_base"]) / "unchunked" / ts_slug / Utility.bejson_utility_sanitize_name(proj_name)
+        if destination:
+            out_dir = Path(destination).resolve()
+        else:
+            ts_slug = get_timestamp().replace(":", "").replace("-", "")
+            out_dir = Path.cwd() / "Restored_Projects" / proj_name / ts_slug
+        
         out_dir.mkdir(parents=True, exist_ok=True)
         
         # Extract Files
@@ -245,64 +380,54 @@ def run_unchunk(arg):
     except Exception as e:
         print(f"\n[ERROR] Unchunking failed: {e}")
 
-def run_chunk_txt(target_dir):
-    print("RESTRICTED: Flat text chunking is allowed for debugging only.")
-    target_path = Path(target_dir).resolve()
-    config = load_or_create_config(target_path)
-    
-    print(f"[*] Mode: CHUNK (TXT)")
-    txt_content = Utility.bejson_utility_chunk_to_text(target_dir)
-    
-    ts_slug = get_timestamp().replace(":", "").replace("-", "")
-    out_dir = Path(config["output_base"]) / "chunked" / ts_slug
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / f"{Utility.bejson_utility_sanitize_name(config['project_name'])}.txt"
-    
-    out_file.write_text(txt_content, encoding="utf-8")
-    print(f"\n[SUCCESS] Project chunked into {out_file}")
-    save_to_history(config["project_name"], out_file)
-
-def run_unchunk_txt(txt_file):
-    # Resolve index
-    resolved_path = resolve_history_index(txt_file)
-    input_file = resolved_path if resolved_path else txt_file
-    
-    input_path = Path(input_file).resolve()
-    if not input_path.exists():
-        print(f"Error: File {input_file} not found.")
-        return
-        
-    print(f"[*] Mode: UNCHUNK (TXT)")
-    
-    content = input_path.read_text(encoding="utf-8")
-    ts_slug = get_timestamp().replace(":", "").replace("-", "")
-    out_dir = Path(DEFAULT_CONFIG["output_base"]) / "unchunked" / ts_slug / input_path.stem
-    
-    count = Utility.bejson_utility_unchunk_from_text(content, str(out_dir))
-    print(f"\n[SUCCESS] Project rebuilt at {out_dir}")
-    print(f"[*] Total Files: {count}")
-
 def main():
-    parser = argparse.ArgumentParser(description="BEJSON Project Chunker/Unchunker")
+    parser = argparse.ArgumentParser(description="BEJSON Project Chunker/Unchunker - Indexed System")
+    
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--chunk", metavar="DIR", help="Chunk a directory into BEJSON")
-    group.add_argument("--unchunk", metavar="FILE/ID", help="Unchunk a BEJSON file or history ID")
-    group.add_argument("--chunk-txt", metavar="DIR", help="Chunk a directory into a text file")
-    group.add_argument("--unchunk-txt", metavar="FILE/ID", help="Unchunk a text file or history ID")
-    group.add_argument("--history", action="store_true", help="List recent chunking history")
+    group.add_argument("--chunk-index", metavar="ID", help="Chunk a registered project by numeric ID")
+    group.add_argument("--unchunk", metavar="FILE", help="Unchunk a BEJSON file")
+    group.add_argument("--unchunk-index", metavar="ID", help="Unchunk a historical chunk by numeric ID")
+    group.add_argument("--list-chunk-index", action="store_true", help="List all registered projects")
+    group.add_argument("--list-project-index", action="store_true", help="Alias for --list-chunk-index")
+    group.add_argument("--list-unchunk-index", action="store_true", help="List all historical chunks with numeric IDs")
+    group.add_argument("--expell-project", metavar="ID", help="Remove a project from the registry (files kept)")
+    group.add_argument("--delete-project", metavar="ID", help="Remove a project and delete all its chunk files")
+    group.add_argument("--get-versions", metavar="ID", help="List all available versions for a project ID")
+    group.add_argument("--delete-version", nargs=2, metavar=("ID", "VER"), help="Delete a specific version (e.g., v1) for a project ID")
+    
+    parser.add_argument("--dest", metavar="DIR", help="Custom destination for unchunking")
     
     args = parser.parse_args()
     
-    if args.history:
-        list_history()
+    if args.list_chunk_index or args.list_project_index:
+        list_chunk_index()
+    elif args.list_unchunk_index:
+        list_unchunk_index()
     elif args.chunk:
         run_chunk(args.chunk)
+    elif args.chunk_index:
+        source_path = resolve_registry_path(args.chunk_index)
+        if source_path:
+            run_chunk(source_path)
+        else:
+            print(f"Error: Project ID {args.chunk_index} not found in registry.")
     elif args.unchunk:
-        run_unchunk(args.unchunk)
-    elif args.chunk_txt:
-        run_chunk_txt(args.chunk_txt)
-    elif args.unchunk_txt:
-        run_unchunk_txt(args.unchunk_txt)
+        run_unchunk(args.unchunk, args.dest)
+    elif args.unchunk_index:
+        chunk_path = resolve_history_path(args.unchunk_index)
+        if chunk_path:
+            run_unchunk(chunk_path, args.dest)
+        else:
+            print(f"Error: Chunk ID {args.unchunk_index} not found in history.")
+    elif args.expell_project:
+        expell_project(args.expell_project)
+    elif args.delete_project:
+        delete_project(args.delete_project)
+    elif args.get_versions:
+        get_versions(args.get_versions)
+    elif args.delete_version:
+        delete_version(args.delete_version[0], args.delete_version[1])
 
 if __name__ == "__main__":
     main()

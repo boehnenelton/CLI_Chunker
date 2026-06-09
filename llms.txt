@@ -1,0 +1,8 @@
+# llms.txt: Discovery Index for Cli Chunker
+
+> Universal project packager for AI context delivery.
+
+- [README.md](README.md): High-level mission and quickstart.
+- [AGENTS.md](AGENTS.md): Strict execution rules and command shortcuts.
+- [OPERATIONAL.md](OPERATIONAL.md): Deep-dive into versioning and registry logic.
+- [SPECIFICATION.md](SPECIFICATION.md): Typed BEJSON 104db schema for project chunks.

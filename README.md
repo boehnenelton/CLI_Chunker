@@ -1,63 +1,47 @@
-# CLI Chunker (v2.0)
-## High-Fidelity BEJSON 104db Project Snapshoting
+---
+project_name: Cli_Chunker
+version: 2.5.0
+status: Agent-Ready
+relational_id: gcli-tool-cli-chunker-001
+---
 
-CLI Chunker is the standard tool for packaging software projects into AI-friendly BEJSON 104db files. It ensures structural integrity, metadata retention, and rapid ingestion for large language models and automated agents.
+# Cli Chunker: Agentic Project Packager (AX-2026)
 
-### 🚀 Quick Start
-```bash
-# Chunk a project
-python3 chunker.py --chunk /path/to/project
+[Agent-Ready] [MCP-Compatible] [llms.txt: Verified]
 
-# Unchunk a BEJSON file
-python3 chunker.py --unchunk /path/to/snapshot.104db.bejson
-```
+Cli Chunker is a high-density project snapshot utility designed for the 2026 AI-Native development lifecycle. It transforms entire directory structures into single, high-fidelity BEJSON 104db payloads for rapid delivery to Large Language Models (LLMs) or for transient versioning.
 
-### 📜 Core Mandates
-1. **Format:** Always use --chunk (104db) for production-grade snapshots.
-2. **Naming:** Append .txt to your .bejson files for web compliance (e.g., data.104db.bejson.txt).
-3. **Storage:** Move final chunks to /storage/emulated/0/Admin/resources/chunks/.
-4. **Audit:** Every chunking action MUST be recorded in the system audit_log.bejson.
+## 1. The Core Philosophy
+In the 2026 ecosystem, 'context is currency.' Cli Chunker focuses on transient context snapshots. It is optimized for speed, numeric indexing, and 'zero-config' operation, making it the primary tool for feeding codebase state into reasoning agents.
 
-### 📂 Repository Structure
-- chunker.py: The main CLI entry point.
-- lib/: Core BEJSON and Utility libraries (symbolic links recommended).
-- output/: Default location for generated chunks and restorations.
-- DOCUMENTATION.md: Comprehensive technical manual and policy guide.
+## 2. Quick Start (One-Liner)
+=> Execute(chunk_dir) -> Success
+python3 Cli_Chunker.py --chunk ~/my-project
 
-### 📊 BEJSON 104db Schema Example
-The following is an example of the internal structure of a generated chunk:
+## 3. High-Density Command Map
 
-```json
-{
-  "Format": "BEJSON",
-  "Format_Version": "104db",
-  "Fields": [
-    {"name": "record_type", "type": "string"},
-    {"name": "project_name", "type": "string"},
-    {"name": "file_path", "type": "string"},
-    {"name": "content", "type": "string"},
-    {"name": "is_binary", "type": "boolean"},
-    {"name": "timestamp", "type": "string"}
-  ],
-  "Values": [
-    ["ProjectMeta", "MyTool", null, "Version 2.0.0", false, "20260527T1200Z"],
-    ["FileContent", "MyTool", "main.py", "print('hello')", false, "20260527T1205Z"],
-    ["FileContent", "MyTool", "config.json", "{\"debug\": true}", false, "20260527T1206Z"]
-  ]
-}
-```
+| Command | Action | Mission |
+| :--- | :--- | :--- |
+| --list-project-index | Discovery | List registered projects with numeric IDs. |
+| --chunk-index <ID> | Re-Chunk | Rapidly update a project by its registry ID. |
+| --list-unchunk-index | Forensic | List historical chunks for restoration. |
+| --unchunk-index <ID> | Restore | Rebuild a project from a historical ID. |
+| --get-versions <ID> | Audit | View all saved version folders for a project. |
+| --delete-version <ID> <v>| Prune | Surgically remove a specific version folder. |
 
-### 🛠️ Advanced Operations
-- Use --chunk-txt for a human-readable flat text dump of the project structure.
-- Use --unchunk-txt to rebuild a project from a previously generated flat text dump.
-- Check chunker_config.json in your target directory to customize exclusion rules.
+## 4. Documentation Stack
+- Execution Grounding: AGENTS.md
+- Discovery Index: llms.txt
+- Operational Logic: OPERATIONAL.md
+- Typed Specification: SPECIFICATION.md
 
-### 🛡️ Security
-This tool is designed for use in the BEJSON Ecosystem. It respects workspace boundaries and provides automated metadata tagging for audit compliance.
-
-### 📝 Development Status
-- Stable Version: 2.0.0
-- Next Release: 2.1.0 (Incremental Chunking)
+## 5. Security & Compliance
+- Atomic Writes: Uses lib_bejson_core for corruption-proof persistence.
+- MIME Evasion: Appends .txt to BEJSON chunks to bypass web upload filters.
+- Relational Integrity: Maintains a project_registry.104a.bejson for source path tracking.
 
 ---
-*Created by Elton Boehnen - 2026*
+Author: Elton Boehnen
+Contact: eltonboehnen@gmail.com
+GitHub: github.com/boehnenelton
+Version: 2.5.0
