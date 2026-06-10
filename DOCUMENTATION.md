@@ -1,4 +1,4 @@
-# CLI Chunker Documentation (v2.0.0)
+# CLI Chunker Documentation (v2.5.0)
 ## Authoritative Technical Manual for the BEJSON 104db Ecosystem
 
 ### 1. Introduction
@@ -9,101 +9,74 @@ The 104db format is a specialized variant of the BEJSON 104 specification, optim
 
 #### 2.1 Core Principles
 - **Positional Integrity:** Every record follows a strict field index map defined in the header.
-- **Type-Strict Records:** All entries are tagged with a record type (e.g., FileContent, ProjectMeta).
+- **Type-Strict Records:** All entries are tagged with a record type (e.g., `FileContent`, `ProjectMeta`).
 - **Multimodal Support:** Handles both UTF-8 text and binary placeholder references.
 - **LLM-Friendly:** The flat array structure minimizes token overhead compared to deeply nested JSON.
 
 #### 2.2 Schema Definition
 The 104db schema for the CLI Chunker includes the following primary field maps:
 
-- **Fields Map:** ["record_type", "project_name", "file_path", "content", "is_binary", "timestamp"]
-- **ProjectMeta:** Contains the project name, version, and global metadata.
-- **FileContent:** Contains the relative path, file content (or checksum for binary), and status.
+- **ProjectMeta Fields:** `[Record_Type_Parent, project_name, version, root_path]`
+- **FileContent Fields:** `[Record_Type_Parent, file_path, file_name, content, is_binary]`
 
 ### 3. Functional Architecture
-The tool is built on a modular Python architecture, leveraging the lib_bejson_core for foundational operations and lib_bejson_utility for high-level filesystem traversal.
+The tool is built on a modular Python architecture, leveraging `lib_bejson_core` for foundational operations and `lib_bejson_utility` for high-level filesystem traversal.
 
-#### 3.1 Chunker Logic (--chunk)
-1. Recursive Scan: Traverses the target directory while respecting .gitignore and chunker_config.json excludes.
-2. Metadata Aggregation: Captures system environment, timestamps, and project identity.
-3. Payload Construction: Iterates through files, reading content and generating 104db records.
-4. Atomic Write: Saves the final document to the /output directory with a unique timestamped CID.
+#### 3.1 Chunker Logic (`--chunk`)
+1. **Recursive Scan**: Traverses the target directory while respecting standard excludes (e.g., `.git`, `node_modules`).
+2. **Project Registry**: Automates project tracking. If a directory has been chunked before, it updates its registration; otherwise, it creates a new entry.
+3. **Versioned Storage**: Every chunk is stored in a dedicated version folder (`v1`, `v2`, etc.) within the `Projects/` hierarchy.
+4. **Atomic Write**: Saves the final document with a `.txt` extension to ensure compatibility with web-based LLM interfaces.
 
-#### 3.2 Unchunker Logic (--unchunk)
-1. Header Validation: Verifies the BEJSON version and integrity checksums.
-2. Registry Mapping: Maps the positional fields to internal logic.
-3. Restoration Loop: Iterates through FileContent records, reconstructing the directory hierarchy.
-4. Collision Handling: Prevents overwriting existing production data by generating unique restoration paths.
+#### 3.2 Unchunker Logic (`--unchunk`)
+1. **Structural Validation**: Verifies the BEJSON 104db integrity before restoration.
+2. **Registry Mapping**: Dynamically resolves field indices to ensure forward compatibility with schema updates.
+3. **Restoration**: Reconstructs the directory hierarchy, restoring file contents accurately.
+4. **Custom Destinations**: Supports the `--dest` flag to override the default restoration path.
 
-### 4. Policy & Compliance
-Adherence to the BEJSON ECOSYSTEM MANDATE: CHUNKING POLICY (v2.0) is mandatory.
+### 4. Indexing & Management
+CLI Chunker features a robust indexing system to manage growing project archives.
 
-#### 4.1 Upload Compliance
-To bypass restrictive MIME-type filters on web-based AI platforms and cloud storage, all production chunks MUST follow the naming convention:
-[filename].104db.bejson.txt
+#### 4.1 Project Registry
+Tracks the original source paths of projects.
+- **List Index**: `python3 Cli_Chunker.py --list-project-index`
+- **Re-chunk by ID**: `python3 Cli_Chunker.py --chunk-index 1`
 
-#### 4.2 Permanent Storage
-Chunks intended for system-wide reference must be stored in the central resources layer:
-/storage/emulated/0/Admin/resources/chunks/
+#### 4.2 History Tracking
+Records every chunking event for quick restoration.
+- **List History**: `python3 Cli_Chunker.py --list-unchunk-index`
+- **Restore by ID**: `python3 Cli_Chunker.py --unchunk-index 1`
 
-#### 4.3 Audit Mandate
-Every execution of the Chunker or Unchunker must be recorded in the audit_log.bejson. Failure to log is a violation of the system integrity protocol.
+#### 4.3 Cleanup Operations
+- **Expell Project**: Removes a project from the registry but keeps its files (`--expell-project <ID>`).
+- **Delete Project**: Removes project and permanently deletes all its chunk versions (`--delete-project <ID>`).
+- **Delete Version**: Surgically removes a specific version folder (`--delete-version <ID> <VER>`).
 
-### 5. Advanced Configuration
-The chunker_config.json allows for granular control over the chunking process.
+### 5. Compliance & Security
+- **MIME Evasion**: All chunks utilize the `.bejson.txt` dual-extension to bypass security filters on upload.
+- **Atomic Operations**: Utilizes temporary file renaming to prevent data loss during power failures or crashes.
+- **Path Portability**: Automatically handles relative and absolute paths across environments.
 
-#### 5.1 Field Definitions
-- project_name: The canonical name used in the BEJSON metadata.
-- extensions: A whitelist of file extensions to include (e.g., .py, .js, .md).
-- exclude_dirs: A blacklist of folders to ignore (e.g., node_modules, .git, __pycache__).
-- output_base: The root directory for generated outputs.
+### 6. Command Map Summary
 
-### 6. Command Line Interface (CLI) Usage
-The tool supports four primary operational modes:
-
-| Mode | Command | Description |
+| Command | Category | Description |
 | :--- | :--- | :--- |
-| **Chunk (Standard)** | python3 chunker.py --chunk [DIR] | Generates a 104db BEJSON snapshot. |
-| **Unchunk (Standard)** | python3 chunker.py --unchunk [FILE] | Reconstructs a project from 104db. |
-| **Chunk (Debug/TXT)** | python3 chunker.py --chunk-txt [DIR] | Generates a flat text representation. |
-| **Unchunk (Debug/TXT)** | python3 chunker.py --unchunk-txt [FILE] | Reconstructs from flat text. |
+| `--chunk DIR` | Chunker | Create a new versioned chunk from a directory. |
+| `--chunk-index ID` | Chunker | Update an existing project snapshot by its ID. |
+| `--unchunk FILE` | Unchunker | Restore a project from a specific BEJSON file. |
+| `--unchunk-index ID`| Unchunker | Restore from a historical snapshot ID. |
+| `--list-project-index`| Management | List all registered projects and their source paths. |
+| `--list-unchunk-index`| Management | List historical snapshots with timestamps. |
+| `--get-versions ID` | Management | List all saved version folders for a project. |
+| `--delete-version ID V`| Management | Delete a specific version folder. |
+| `--expell-project ID`| Management | Unregister a project (files preserved). |
+| `--delete-project ID`| Management | Fully wipe a project and all its archives. |
 
-### 7. Performance & Limits
-- File Size: Optimized for source code repositories under 500MB.
-- Recursion Depth: Supports up to 100 levels of directory nesting.
-- Concurrent Access: Not recommended for simultaneous write operations on the same target.
-
-### 8. Security Considerations
-- Credential Protection: The chunker automatically scrubs common secret patterns (API keys, .env files) if configured in the utility layer.
-- Jurisdictional Boundary: The tool is restricted to the /storage/emulated/0/Admin workspace.
-
-### 9. Maintenance and Updates
-The CLI Chunker is a living tool. Updates to the lib_bejson_core will periodically require re-chunking of core libraries to ensure compatibility with newer AI models and administrative workflows.
-
-### 10. Troubleshooting
-- Error: Local libraries not found: Ensure lib_bejson_core.py and lib_bejson_utility.py are in the lib/ directory or system path.
-- Error: Path not in workspace: Verify the target directory is within the authorized Android storage layers.
-- Error: Invalid 104db version: Ensure the input file was generated by a compatible version of CLI Chunker.
-
-### 11. Appendix: Field Index Mapping
-For developers extending the tool, the following index map is authoritative for the 104db FileContent record:
-- Index 0: record_type
-- Index 1: project_name
-- Index 2: file_path
-- Index 3: content
-- Index 4: is_binary
-- Index 5: timestamp
-
-### 12. System Integration
-The CLI Chunker is designed to be called by higher-level orchestrators. Its output is a primary input for the BEJSON Cognitive Core, providing the necessary context for agent reasoning and task execution.
-
-### 13. Future Roadmap
-- Implementation of incremental chunking (delta updates).
-- Integration with GPG for encrypted chunk transport.
-- Native support for additional relational metadata tags.
-
-### 14. Support and Audit
-All technical queries should be directed to the System Administrator. Audit trails are maintained in the central registry.
+### 7. Troubleshooting
+- **Permission Denied**: Ensure `python3` is used to execute the script.
+- **Missing lib/**: Ensure the tool's `lib/` directory contains `lib_bejson_core.py` and `lib_bejson_utility.py`.
+- **Validation Error**: The input file may be corrupted or not a valid BEJSON 104db file.
 
 ---
-*End of Documentation - System Authorized (2026-05-27)*
+*Manual Version: 2.5.0*
+*System Authorized (2026-06-10)*

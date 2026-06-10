@@ -1,0 +1,7 @@
+Projects/
+__pycache__/
+*.pyc
+.DS_Store
+*.bejson.txt
+chunk_history.104a.bejson
+project_registry.104a.bejson
