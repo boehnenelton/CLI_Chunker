@@ -69,6 +69,21 @@
       "CLI_Package_Updater",
       "/storage/emulated/0/Admin/tools/CLI_Package_Updater",
       "2026-06-11T16:16:05Z"
+    ],
+    [
+      "32bit",
+      "/storage/emulated/0/Download/rechunk/32bit",
+      "2026-06-11T18:25:44Z"
+    ],
+    [
+      "32bit-no-combat",
+      "/storage/emulated/0/Download/rechunk/32bit-no-combat",
+      "2026-06-11T18:25:44Z"
+    ],
+    [
+      "exported-standalkne",
+      "/storage/emulated/0/Download/rechunk/exported-standalkne",
+      "2026-06-11T18:25:45Z"
     ]
   ]
 }
