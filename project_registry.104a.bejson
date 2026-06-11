@@ -19,5 +19,46 @@
       "type": "string"
     }
   ],
-  "Values": []
+  "Values": [
+    [
+      "Lib_JS",
+      "/data/data/com.termux/files/home/libraries/Lib_JS",
+      "2026-06-10T19:39:29Z"
+    ],
+    [
+      "Lib_PY",
+      "/data/data/com.termux/files/home/libraries/Lib_PY",
+      "2026-06-10T19:39:29Z"
+    ],
+    [
+      "Lib_SH",
+      "/data/data/com.termux/files/home/libraries/Lib_SH",
+      "2026-06-10T19:39:29Z"
+    ],
+    [
+      "Lib_TS",
+      "/data/data/com.termux/files/home/libraries/Lib_TS",
+      "2026-06-10T19:39:30Z"
+    ],
+    [
+      "Cli_Chunker_Staged",
+      "/storage/emulated/0/Admin/testing/Cli_Chunker_Staged",
+      "2026-06-10T19:43:16Z"
+    ],
+    [
+      "MFDB_Chunker_Staged",
+      "/storage/emulated/0/Admin/testing/MFDB_Chunker_Staged",
+      "2026-06-10T19:44:38Z"
+    ],
+    [
+      "32bit-adventure----refined-addition-241-hooded",
+      "/storage/emulated/0/Admin/dev/react/32bit-adventure----refined-addition-241-hooded",
+      "2026-06-10T19:48:57Z"
+    ],
+    [
+      "BEJSON_Manager470-Firebase",
+      "/storage/emulated/0/Admin/dev/react/BEJSON_Manager470-Firebase",
+      "2026-06-10T19:53:37Z"
+    ]
+  ]
 }
